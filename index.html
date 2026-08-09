@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nakama Companion — Deck Sync</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+
+  <body>
+    <div class="app">
+      <!-- ── Title bar ─────────────────────────────────────────── -->
+      <header class="topbar">
+        <div class="brand">
+          <img src="/src/assets/logo.png" alt="" class="brand-mark" />
+          <div class="brand-text">
+            <strong>Nakama Companion</strong>
+            <span data-i18n="app.subtitle"></span>
+          </div>
+        </div>
+        <button id="settings-btn" class="icon-btn" data-i18n-title="app.settings" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </button>
+      </header>
+
+      <!-- ── Link account ─────────────────────────────── -->
+      <section id="view-link" class="view" hidden>
+        <div class="hero">
+          <img src="/src/assets/logo.png" alt="" class="hero-logo" />
+          <h1 data-i18n="link.title"></h1>
+          <p class="lead" data-i18n="link.lead"></p>
+        </div>
+
+        <button id="link-btn" class="btn btn-accent btn-lg">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+          </svg>
+          <span id="link-btn-label" data-i18n="link.cta"></span>
+        </button>
+
+        <p id="link-error" class="alert alert-error" hidden></p>
+        <p class="footnote" data-i18n="link.why"></p>
+      </section>
+
+      <!-- ── Main ──────────────────────────────────────────────── -->
+      <section id="view-main" class="view" hidden>
+        <div class="status-card">
+          <div class="status-head">
+            <span id="status-dot" class="dot"></span>
+            <span id="status-title"></span>
+          </div>
+          <p id="status-detail" class="status-detail">—</p>
+        </div>
+
+        <!-- First run: locate the simulator -->
+        <div id="setup-panel" class="panel" hidden>
+          <h2 data-i18n="setup.title"></h2>
+          <p class="muted" id="setup-description"></p>
+          <div class="stack">
+            <button id="autodetect-btn" class="btn btn-accent" data-i18n="setup.autodetect"></button>
+            <button id="pick-folder-btn" class="btn btn-ghost" data-i18n="setup.manual"></button>
+          </div>
+          <p id="setup-error" class="alert alert-error" hidden></p>
+        </div>
+
+        <!-- Ready: sync -->
+        <div id="sync-panel" hidden>
+          <button id="sync-now-btn" class="btn btn-accent btn-lg">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 2v6h-6" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+              <path d="M3 22v-6h6" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+            </svg>
+            <span id="sync-btn-label" data-i18n="sync.now"></span>
+          </button>
+
+          <div class="meta-row">
+            <div class="meta">
+              <span class="meta-label" data-i18n="sync.deckCount"></span>
+              <strong id="deck-count">—</strong>
+            </div>
+            <div class="meta">
+              <span class="meta-label" data-i18n="sync.simulator"></span>
+              <strong id="sim-state">—</strong>
+            </div>
+          </div>
+
+          <details id="log-details" class="log">
+            <summary data-i18n="sync.logTitle"></summary>
+            <ul id="sync-log"></ul>
+          </details>
+        </div>
+      </section>
+
+      <!-- ── Settings ──────────────────────────────────────────── -->
+      <section id="view-settings" class="view" hidden>
+        <div class="settings-head">
+          <button id="settings-back-btn" class="back-btn" aria-label="Back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 12H5" /><path d="m12 19-7-7 7-7" />
+            </svg>
+          </button>
+          <h2 data-i18n="settings.title"></h2>
+        </div>
+
+        <label class="field">
+          <span data-i18n="settings.folder"></span>
+          <div class="input-row">
+            <input id="settings-folder" type="text" readonly
+                   data-i18n-placeholder="settings.folderEmpty" />
+            <button id="settings-pick-folder-btn" class="btn btn-ghost btn-sm"
+                    data-i18n="settings.browse"></button>
+          </div>
+        </label>
+
+        <label class="field">
+          <span data-i18n="settings.language"></span>
+          <select id="settings-language"></select>
+        </label>
+
+        <div class="toggle-row">
+          <div>
+            <strong data-i18n="settings.onLaunch"></strong>
+            <span class="muted" data-i18n="settings.onLaunchHint"></span>
+          </div>
+          <label class="switch">
+            <input id="settings-on-launch" type="checkbox" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <strong data-i18n="settings.autostart"></strong>
+            <span class="muted" data-i18n="settings.autostartHint"></span>
+          </div>
+          <label class="switch">
+            <input id="settings-autostart" type="checkbox" />
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <details class="advanced">
+          <summary data-i18n="settings.advanced"></summary>
+          <label class="field">
+            <span data-i18n="settings.backendUrl"></span>
+            <input id="settings-backend-url" type="text" placeholder="https://.../api" />
+          </label>
+        </details>
+
+        <button id="settings-save-btn" class="btn btn-accent" data-i18n="settings.save"></button>
+        <p id="settings-status" class="alert" hidden></p>
+
+        <button id="unlink-btn" class="btn btn-ghost btn-danger" data-i18n="link.unlink"></button>
+      </section>
+    </div>
+  </body>
+</html>
