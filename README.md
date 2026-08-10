@@ -1,4 +1,4 @@
-# Nakama Companion — Deck Sync
+# Nakama Companion: Deck Sync
 
 Windows desktop app (Tauri) that syncs decklists saved on
 [Nakama Companion](https://nakamacompanion.com) into **OP TCG Simulator**
@@ -29,23 +29,23 @@ Plain text, one card per line, leader first:
 4xOP05-101
 ```
 
-The filename is `<DeckName> - Nakama.deck` — the suffix makes it obvious at a
-glance, in the simulator's deck list, which files are sync-managed (and in a
-shared screenshot/folder, that the source is legitimate). Cards are sorted by
+The filename is `<DeckName> - Nakama.deck`. The suffix makes it obvious at a
+glance, in the simulator's deck list, which files are sync-managed, and it
+identifies the source in a shared screenshot or folder. Cards are sorted by
 id, so the output is deterministic.
 
 ## User file safety
 
 The app only ever touches files it created itself. The `deckId -> filename`
 mapping lives in `config.json` (`synced_decks`): a deck renamed on the site
-renames the file, a deck deleted on the site deletes the file — but a
+renames the file, a deck deleted on the site deletes the file, but a
 `.deck` file the app never wrote is never touched.
 
 ## Authentication: browser pairing
 
 The app **never talks to Firebase directly**. App Check is enforced on this
 project's Authentication API, and Firebase publishes no App Check provider
-for native desktop apps (only web, iOS and Android exist) — any call to
+for native desktop apps (only web, iOS and Android exist), so any call to
 Identity Toolkit from here is rejected with
 `Firebase App Check token is invalid`, whether with a password or with
 Google.
@@ -64,8 +64,8 @@ desktop app (the loopback redirect carries only the claim code)
 The device token is issued and verified by the **Nakama Companion backend**,
 not Firebase (server-side implementation, not published in this repo). Only
 its SHA-256 is stored, so a database read isn't reproducible as a credential.
-The claim code exists so that it — not the token — is what crosses the
-browser redirect: that way the long-lived credential never ends up in a URL
+The claim code exists so that it, not the token, is what crosses the
+browser redirect. That way the long-lived credential never ends up in a URL
 or in browser history, the same reason OAuth flows carry a code rather than a
 token.
 
@@ -81,7 +81,7 @@ JS context, and CORS doesn't apply.
 Nakama Companion's application backend has no direct public URL (not
 reachable from a user's PC). The app therefore calls the public routes
 exposed at `https://nakamacompanion.com/api/desktop/*`, which forward
-internally to the backend — implementation not published in this repo.
+internally to the backend, an implementation not published in this repo.
 
 ## Languages
 
@@ -123,4 +123,4 @@ Regenerated from any square logo:
 npm run tauri icon path/to/square-logo.png
 ```
 
-(the logo must be squared first — `tauri icon` rejects non-square images).
+(the logo must be squared first: `tauri icon` rejects non-square images).
