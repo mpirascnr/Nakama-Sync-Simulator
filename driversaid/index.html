@@ -89,6 +89,8 @@ select{max-width:46vw}
     <select id="profile" aria-label="Profilo ciclo"></select>
     <label class="sbtn" id="csvBtn" for="csvIn">Carica CSV</label>
     <input type="file" id="csvIn" accept=".csv,.txt,text/csv,text/plain,text/comma-separated-values" hidden>
+    <label class="sbtn" id="csvGBtn" for="csvGIn">CSV con marce</label>
+    <input type="file" id="csvGIn" accept=".csv,.txt,text/csv,text/plain,text/comma-separated-values" hidden>
     <span class="sp"></span>
     <button class="sbtn" id="btnFs" title="Schermo intero">⛶</button>
     <button class="sbtn" id="btnSet" title="Impostazioni">⚙</button>
@@ -155,7 +157,12 @@ function saveS(){try{localStorage.setItem('da_settings',JSON.stringify(S));}catc
 /*BEGIN-CYCLES*/
 /* ===================== CICLI ===================== */
 function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
-function mk(name,T,V,phases){let m=0;for(const v of V)if(v>m)m=v;return{name,T,V,phases,tEnd:T[T.length-1],vMax:m};}
+function mk(name,T,V,phases,gears){
+  let m=0;for(const v of V)if(v>m)m=v;
+  let shifts=null;
+  if(gears){shifts=[];let prev=null;for(let i=0;i<gears.length;i++){const g=gears[i];if(g!==''&&g!==prev){shifts.push({t:T[i],g});prev=g;}}}
+  return{name,T,V,phases,tEnd:T[T.length-1],vMax:m,gears:gears||null,shifts};
+}
 // punti chiave [t,v] -> campioni a 1 Hz con interpolazione lineare
 function fromBP(bp){
   const tEnd=bp[bp.length-1][0],T=[],V=[];let j=0;
@@ -252,6 +259,8 @@ function rangeMax(c,a,b){
   let m=Math.max(vAt(c,a),vAt(c,b));const T=c.T,V=c.V,n=T.length;
   let i=a<T[0]?0:idxLE(T,a)+1;for(;i<n&&T[i]<b;i++)if(V[i]>m)m=V[i];return m;
 }
+function gearAt(c,t){if(!c.gears)return null;return c.gears[clamp(idxLE(c.T,t),0,c.gears.length-1)];}
+function nextShift(c,t){if(!c.shifts)return null;for(const s of c.shifts)if(s.t>t+1e-9)return s;return null;}
 function phaseAt(t){const p=cyc.phases;for(const x of p)if(t>=x.s&&t<x.e)return x.name;return p.length?p[p.length-1].name:'—';}
 
 /* ===================== STATO ===================== */
@@ -333,7 +342,7 @@ function doLog(t){
   const rate=S.logHz,k=Math.floor(t*rate+1e-9);
   while(logIdx<k){
     logIdx++;const tg=logIdx/rate,vt=vAt(cyc,tg),vg=vGps();
-    log.push({ts:Date.now()-(t-tg)*1000,t:tg,vt,vg,err:vg==null?null:vg-vt,lat:gps.lat,lon:gps.lon,acc:gps.acc});
+    log.push({ts:Date.now()-(t-tg)*1000,t:tg,vt,vg,err:vg==null?null:vg-vt,lat:gps.lat,lon:gps.lon,acc:gps.acc,gear:gearAt(cyc,tg)});
     if(sim.on)logSim=true;
     if(vg!=null){cmp.n++;if(evalTol(tg,vg)<2)cmp.ok++;}
   }
@@ -344,8 +353,8 @@ function exportCsv(){
   if(!log.length){toast('Nessun dato registrato');return;}
   const semi=S.sep===';',sep=semi?';':',',dec=semi?',':'.';
   const f=(x,d)=>(x==null||!isFinite(x))?'':x.toFixed(d).replace('.',dec);
-  const rows=[['timestamp','t_ciclo_s','v_target_kmh','v_gps_kmh','errore_kmh','lat','lon','accuracy_m'].join(sep)];
-  for(const r of log)rows.push([new Date(r.ts).toISOString(),f(r.t,2),f(r.vt,2),f(r.vg,2),f(r.err,2),f(r.lat,7),f(r.lon,7),f(r.acc,1)].join(sep));
+  const rows=[['timestamp','t_ciclo_s','v_target_kmh','v_gps_kmh','errore_kmh','lat','lon','accuracy_m'].concat(cyc.gears?['marcia_target']:[]).join(sep)];
+  for(const r of log)rows.push([new Date(r.ts).toISOString(),f(r.t,2),f(r.vt,2),f(r.vg,2),f(r.err,2),f(r.lat,7),f(r.lon,7),f(r.acc,1)].concat(cyc.gears?[r.gear==null?'':r.gear]:[]).join(sep));
   const d=new Date(),p=n=>String(n).padStart(2,'0');
   const name=`driversaid_${cycKey.startsWith('csv')?'csv':cycKey}_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}${logSim?'_SIM':''}.csv`;
   const blob=new Blob([(semi?'﻿':'')+rows.join('\r\n')],{type:'text/csv;charset=utf-8'});
@@ -379,7 +388,7 @@ function updateButtons(){
   $('bExp').disabled=!log.length;
   $('logN').textContent=log.length+' righe';
   $('profile').disabled=!idle;$('simChk').disabled=!idle;
-  $('csvBtn').setAttribute('aria-disabled',idle?'false':'true');
+  $('csvBtn').setAttribute('aria-disabled',idle?'false':'true');$('csvGBtn').setAttribute('aria-disabled',idle?'false':'true');
   $('sHz').disabled=!idle;
 }
 setInterval(()=>{$('logN').textContent=log.length+' righe';$('bExp').disabled=!log.length;},500);
@@ -444,6 +453,38 @@ $('csvIn').addEventListener('change',async e=>{
     LABELS[key]='CSV: '+f.name+' ('+Math.round(T[T.length-1])+' s)';
     fillProfiles(key);setCycle(key);
     toast('Caricati '+T.length+' punti, '+Math.round(T[T.length-1])+' s, vmax '+CYCLES[key].vMax.toFixed(1)+' km/h',3500);
+  }catch(err){toast('CSV non valido: '+err.message,4500);}
+  e.target.value='';
+});
+
+// CSV a due colonne: velocità_target_kmh, marcia  (una riga = 1 s, la prima riga è t=0)
+function parseGearCsv(txt){
+  txt=txt.replace(/^\uFEFF/,'');const V=[],G=[];let last='';
+  for(const raw of txt.split(/\r?\n/)){
+    const line=raw.trim();if(!line||line[0]==='#')continue;
+    let parts,decComma=true;
+    if(line.includes(';'))parts=line.split(';');
+    else if(line.includes('\t'))parts=line.split('\t');
+    else if(line.includes(',')){parts=line.split(',');decComma=false;}
+    else parts=line.split(/\s+/);
+    const v=parseFloat((parts[0]||'').trim().replace(decComma?',':'§','.'));
+    if(!isFinite(v))continue;                       // intestazione o riga non valida
+    let g=(parts[1]||'').trim().replace(/^["']|["']$/g,'');
+    if(g!==''&&isFinite(Number(g)))g=String(Number(g));
+    if(g==='')g=last;else last=g;
+    V.push(Math.max(0,v));G.push(g);
+  }
+  if(V.length<2)throw new Error('servono almeno 2 righe: velocita_kmh,marcia');
+  return{T:V.map((_,i)=>i),V,G};
+}
+$('csvGIn').addEventListener('change',async e=>{
+  const f=e.target.files&&e.target.files[0];if(!f)return;
+  try{
+    const{T,V,G}=parseGearCsv(await f.text());
+    const key='csv'+(++csvN),c=mk('CSV',T,V,[{name:'CSV',s:0,e:T[T.length-1]}],G);
+    CYCLES[key]=c;LABELS[key]='CSV marce: '+f.name+' ('+Math.round(c.tEnd)+' s)';
+    fillProfiles(key);setCycle(key);
+    toast('Caricati '+T.length+' s, '+c.shifts.length+' cambi marcia, vmax '+c.vMax.toFixed(1)+' km/h',4000);
   }catch(err){toast('CSV non valido: '+err.message,4500);}
   e.target.value='';
 });
@@ -557,10 +598,23 @@ function draw(){
   ctx.font='700 11px system-ui,sans-serif';ctx.textAlign='left';ctx.textBaseline='top';
   ctx.setLineDash([4,4]);ctx.lineWidth=1;
   for(const p of c.phases){
-    if(p.s>t-PAST&&p.s<t+FUT){const x=X(p.s);ctx.strokeStyle='rgba(255,255,255,.28)';ctx.beginPath();ctx.moveTo(x,mT);ctx.lineTo(x,mT+ph);ctx.stroke();ctx.fillStyle='rgba(255,255,255,.55)';ctx.fillText(p.name,x+4,mT+3);}
+    if(p.s>t-PAST&&p.s<t+FUT){const x=X(p.s);ctx.strokeStyle='rgba(255,255,255,.28)';ctx.beginPath();ctx.moveTo(x,mT);ctx.lineTo(x,mT+ph);ctx.stroke();ctx.fillStyle='rgba(255,255,255,.55)';ctx.fillText(p.name,x+4,c.shifts?mT+ph-16:mT+3);}
   }
   if(c.tEnd>t-PAST&&c.tEnd<t+FUT){const x=X(c.tEnd);ctx.strokeStyle='rgba(255,75,75,.6)';ctx.beginPath();ctx.moveTo(x,mT);ctx.lineTo(x,mT+ph);ctx.stroke();}
   ctx.setLineDash([]);
+
+  // indicatori cambio marcia (linea verticale + marcia da inserire)
+  if(c.shifts){
+    ctx.font='800 17px system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    for(const s of c.shifts){
+      if(s.t<t-PAST-2||s.t>t+FUT+2)continue;
+      const x=X(s.t),past=s.t<t,col=past?'rgba(255,95,210,.35)':'#ff5fd2';
+      ctx.strokeStyle=col;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(x,mT);ctx.lineTo(x,mT+ph);ctx.stroke();
+      const w=Math.max(28,ctx.measureText(s.g).width+14);
+      ctx.fillStyle=col;ctx.fillRect(x-w/2,mT+2,w,24);
+      ctx.fillStyle=past?'rgba(5,8,12,.7)':'#05080c';ctx.fillText(s.g,x,mT+14);
+    }
+  }
 
   // curva target
   const a=t-PAST-1,b=t+FUT+1,P=new Path2D();
@@ -593,6 +647,14 @@ function draw(){
     const yg=clamp(Y(g),mT+4,mT+ph-4);
     ctx.save();ctx.shadowColor=col;ctx.shadowBlur=20;ctx.fillStyle=col;ctx.beginPath();ctx.arc(xNow,yg,10,0,6.2832);ctx.fill();ctx.restore();
     ctx.strokeStyle='#fff';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(xNow,yg,10,0,6.2832);ctx.stroke();
+  }
+  // marcia attuale e prossimo cambio
+  if(c.gears){
+    const cur=gearAt(c,Math.max(0,t)),nx=nextShift(c,t),dtn=nx?nx.t-t:null;
+    ctx.fillStyle='rgba(5,8,12,.78)';ctx.fillRect(mL+6,mT+32,150,nx?58:36);
+    ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillStyle='#fff';ctx.font='800 24px system-ui,sans-serif';ctx.fillText('MARCIA '+cur,mL+12,mT+36);
+    if(nx){ctx.fillStyle=dtn<=2?'#ffd23f':'#ff5fd2';ctx.font='800 16px system-ui,sans-serif';ctx.fillText('→ '+nx.g+' tra '+Math.max(0,dtn).toFixed(dtn<10?1:0)+' s',mL+12,mT+66);}
   }
 }
 
