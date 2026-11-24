@@ -1,1 +1,1 @@
-{"name":"Driver's Aid","short_name":"DriversAid","start_url":"./","display":"fullscreen","orientation":"landscape","background_color":"#05080c","theme_color":"#05080c","icons":[]}
+{"name":"Driver's Aid","short_name":"DriversAid","start_url":"./","scope":"./","display":"fullscreen","orientation":"landscape","background_color":"#05080c","theme_color":"#05080c","icons":[{"src":"icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"}]}
