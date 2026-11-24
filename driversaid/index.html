@@ -603,16 +603,25 @@ function draw(){
   if(c.tEnd>t-PAST&&c.tEnd<t+FUT){const x=X(c.tEnd);ctx.strokeStyle='rgba(255,75,75,.6)';ctx.beginPath();ctx.moveTo(x,mT);ctx.lineTo(x,mT+ph);ctx.stroke();}
   ctx.setLineDash([]);
 
-  // indicatori cambio marcia (linea verticale + marcia da inserire)
+  // indicatori cambio marcia: linea verticale + numero grande della marcia da inserire
   if(c.shifts){
-    ctx.font='800 17px system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    const fs=clamp(ph*0.22,30,64),bh=fs+10,cur=gearAt(c,Math.max(0,t)),nx=nextShift(c,t),dtn=nx?nx.t-t:null;
+    // riquadro marcia attuale / prossimo cambio (sotto i badge, a sinistra)
+    ctx.fillStyle='rgba(5,8,12,.8)';ctx.fillRect(mL+6,mT+bh+8,148,nx?56:34);
+    ctx.textAlign='left';ctx.textBaseline='top';
+    ctx.fillStyle='#fff';ctx.font='800 22px system-ui,sans-serif';ctx.fillText('MARCIA '+cur,mL+12,mT+bh+11);
+    if(nx){ctx.fillStyle=dtn<=2?'#ffd23f':'#ff5fd2';ctx.font='800 15px system-ui,sans-serif';ctx.fillText('→ '+nx.g+' tra '+Math.max(0,dtn).toFixed(dtn<10?1:0)+' s',mL+12,mT+bh+38);}
+    ctx.textAlign='center';ctx.textBaseline='middle';
     for(const s of c.shifts){
-      if(s.t<t-PAST-2||s.t>t+FUT+2)continue;
-      const x=X(s.t),past=s.t<t,col=past?'rgba(255,95,210,.35)':'#ff5fd2';
-      ctx.strokeStyle=col;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(x,mT);ctx.lineTo(x,mT+ph);ctx.stroke();
-      const w=Math.max(28,ctx.measureText(s.g).width+14);
-      ctx.fillStyle=col;ctx.fillRect(x-w/2,mT+2,w,24);
-      ctx.fillStyle=past?'rgba(5,8,12,.7)':'#05080c';ctx.fillText(s.g,x,mT+14);
+      if(s.t<t-PAST-3||s.t>t+FUT+3)continue;
+      const x=X(s.t),past=s.t<t,soon=!past&&s.t-t<=2;
+      const col=past?'rgba(255,95,210,.3)':soon?'#ffd23f':'#ff5fd2';
+      ctx.strokeStyle=col;ctx.lineWidth=past?2.5:4;ctx.beginPath();ctx.moveTo(x,mT);ctx.lineTo(x,mT+ph);ctx.stroke();
+      ctx.font='900 '+(past?Math.round(fs*0.7):fs)+'px system-ui,sans-serif';
+      const bhh=past?Math.round(bh*0.7):bh,w=Math.max(bhh*0.95,ctx.measureText(s.g).width+16);
+      ctx.save();if(!past){ctx.shadowColor=col;ctx.shadowBlur=14;}
+      ctx.fillStyle=col;ctx.fillRect(x-w/2,mT+2,w,bhh);ctx.restore();
+      ctx.fillStyle=past?'rgba(5,8,12,.6)':'#05080c';ctx.fillText(s.g,x,mT+2+bhh/2+1);
     }
   }
 
@@ -647,14 +656,6 @@ function draw(){
     const yg=clamp(Y(g),mT+4,mT+ph-4);
     ctx.save();ctx.shadowColor=col;ctx.shadowBlur=20;ctx.fillStyle=col;ctx.beginPath();ctx.arc(xNow,yg,10,0,6.2832);ctx.fill();ctx.restore();
     ctx.strokeStyle='#fff';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(xNow,yg,10,0,6.2832);ctx.stroke();
-  }
-  // marcia attuale e prossimo cambio
-  if(c.gears){
-    const cur=gearAt(c,Math.max(0,t)),nx=nextShift(c,t),dtn=nx?nx.t-t:null;
-    ctx.fillStyle='rgba(5,8,12,.78)';ctx.fillRect(mL+6,mT+32,150,nx?58:36);
-    ctx.textAlign='left';ctx.textBaseline='top';
-    ctx.fillStyle='#fff';ctx.font='800 24px system-ui,sans-serif';ctx.fillText('MARCIA '+cur,mL+12,mT+36);
-    if(nx){ctx.fillStyle=dtn<=2?'#ffd23f':'#ff5fd2';ctx.font='800 16px system-ui,sans-serif';ctx.fillText('→ '+nx.g+' tra '+Math.max(0,dtn).toFixed(dtn<10?1:0)+' s',mL+12,mT+66);}
   }
 }
 
