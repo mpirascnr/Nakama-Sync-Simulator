@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#05080c">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Driver's Aid – Cicli omologativi</title>
+<style>
+:root{--bg:#05080c;--panel:#0b121a;--line:#1f2d3b;--tx:#eaf3fa;--mut:#7f95a9;--cy:#19e3ff;--ok:#27e07b;--warn:#ffd23f;--bad:#ff4b4b;--sim:#b388ff}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%;width:100%;max-width:100vw;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,Roboto,"Segoe UI",sans-serif;overflow:hidden;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+#app{display:grid;height:100vh;height:100dvh;grid-template-columns:minmax(0,1fr) minmax(180px,27vw);width:100%;grid-template-rows:auto minmax(0,1fr) auto;grid-template-areas:"top top" "plot hud" "ctl ctl";
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+/* barra alta */
+#top{min-width:0;grid-area:top;display:flex;align-items:center;gap:6px;padding:4px 6px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto;white-space:nowrap}
+.chip{display:flex;align-items:center;gap:6px;padding:4px 9px;border:1px solid var(--line);border-radius:999px;font-size:12px;background:#0f1923;min-height:30px}
+.chip b{font-size:12px;letter-spacing:.5px}
+.chip span{color:var(--mut)}
+#gpsDot{width:11px;height:11px;border-radius:50%;background:var(--mut);display:inline-block;flex:none}
+#gpsDot.ok{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+#gpsDot.wait{background:var(--warn);box-shadow:0 0 8px var(--warn);animation:bl 1s infinite}
+#gpsDot.err{background:var(--bad);box-shadow:0 0 8px var(--bad)}
+#gpsDot.sim{background:var(--sim);box-shadow:0 0 8px var(--sim)}
+@keyframes bl{50%{opacity:.25}}
+.tog{cursor:pointer}
+.tog input{width:18px;height:18px;accent-color:var(--sim)}
+select,.sbtn{background:#101a24;color:var(--tx);border:1px solid var(--line);border-radius:8px;font-size:13px;padding:5px 8px;min-height:30px;font-family:inherit}
+select{max-width:46vw}
+.sbtn{font-weight:700;cursor:pointer;display:inline-flex;align-items:center}
+.sbtn[aria-disabled=true],select:disabled{opacity:.4;pointer-events:none}
+.sp{flex:1}
+/* area grafico */
+#plot{grid-area:plot;position:relative;min-height:0;min-width:0}
+#cv{position:absolute;left:0;top:0;display:block}
+#ovl{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;text-align:center;font-weight:800;text-shadow:0 2px 12px #000}
+#ovl .n{font-size:clamp(60px,34vh,200px);line-height:1;color:rgba(255,255,255,.85)}
+#ovl .m{font-size:clamp(18px,5vh,34px);color:#fff;background:rgba(5,8,12,.7);padding:6px 16px;border-radius:12px}
+#ovl .s{font-size:clamp(13px,3.2vh,20px);color:var(--mut);margin-top:6px;font-weight:600}
+#warn{position:absolute;left:8px;right:8px;top:6px;background:rgba(160,20,20,.92);border:1px solid var(--bad);border-radius:8px;padding:6px 10px;font-size:12px;line-height:1.35;z-index:3}
+/* HUD */
+#hud{min-width:0;grid-area:hud;display:flex;flex-direction:column;background:var(--panel);border-left:1px solid var(--line);min-height:0}
+.blk{flex:1.25;display:flex;flex-direction:column;justify-content:center;padding:2px 10px;border-bottom:1px solid var(--line);min-height:0}
+.blk small{font-size:10.5px;letter-spacing:1px;color:var(--mut);font-weight:700}
+.big{font-weight:800;font-size:clamp(28px,11.5vh,66px);line-height:1.02;font-variant-numeric:tabular-nums;letter-spacing:-1px;white-space:nowrap}
+.cy{color:var(--cy)}
+.blk.info{flex:1;display:grid;grid-template-columns:1fr 1fr;gap:0 8px;align-content:center;border-bottom:0}
+.blk.info b{font-size:clamp(13px,3.4vh,19px);font-variant-numeric:tabular-nums;display:block;line-height:1.15;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.blk.info .full{grid-column:1/3;font-size:11.5px;color:var(--mut);margin-top:2px}
+/* controlli */
+#ctl{min-width:0;grid-area:ctl;overflow-x:auto;display:flex;gap:6px;padding:4px 6px;background:var(--panel);border-top:1px solid var(--line)}
+.b{flex:1;min-height:54px;font-weight:800;font-size:clamp(11px,2.5vh,16px);letter-spacing:.3px;border:1px solid #2a3b4d;background:#111c27;color:var(--tx);border-radius:12px;font-family:inherit;cursor:pointer;padding:0 6px}
+.b:active{filter:brightness(1.4)}
+.b:disabled{opacity:.33}
+.b.go{background:#0e4d2d;border-color:var(--ok)}
+.b.stop{background:#4d1313;border-color:var(--bad)}
+.b.on{border-color:var(--warn);color:var(--warn)}
+.b small{display:block;font-weight:600;color:var(--mut);font-size:10px}
+/* impostazioni */
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:10;padding:8px}
+.card{background:#0e1721;border:1px solid #2a3b4d;border-radius:14px;padding:12px 16px;width:min(560px,100%);max-height:94vh;overflow:auto}
+.card h3{margin:0 0 8px;font-size:16px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+.row input,.row select{width:130px;font-size:14px}
+.row input{background:#101a24;color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:5px 8px;min-height:32px}
+.hint{font-size:11.5px;color:var(--mut);margin:8px 0}
+#toast{position:fixed;left:50%;bottom:78px;transform:translateX(-50%);background:#1b2a39;border:1px solid #35516d;color:#fff;padding:8px 14px;border-radius:10px;font-size:13px;z-index:20;max-width:90vw;text-align:center;opacity:0;pointer-events:none;transition:opacity .2s}
+#toast.show{opacity:1}
+/* portrait: layout di ripiego */
+@media (orientation:portrait){
+  #app{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto auto;grid-template-areas:"top" "plot" "hud" "ctl"}
+  #hud{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-left:0;border-top:1px solid var(--line)}
+  .blk{border-bottom:0;border-right:1px solid var(--line);padding:4px 6px;min-width:0}
+  .blk.info{grid-column:1/4;border-top:1px solid var(--line);grid-template-columns:1fr 1fr 1fr}
+  .blk.info .full{grid-column:auto;margin:0;align-self:end}
+  .big{font-size:clamp(26px,9vw,44px)}
+  .chip{flex:none}
+  #ctl{flex-wrap:wrap;overflow-x:hidden}.b{flex:1 1 28%;min-width:0;min-height:46px;font-size:13px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="top">
+    <div class="chip" id="gps"><i id="gpsDot"></i><b id="gpsTxt">GPS</b><span id="gpsInfo"></span></div>
+    <label class="chip tog"><input type="checkbox" id="simChk"><b>SIM / DEMO</b></label>
+    <select id="profile" aria-label="Profilo ciclo"></select>
+    <label class="sbtn" id="csvBtn" for="csvIn">Carica CSV</label>
+    <input type="file" id="csvIn" accept=".csv,.txt,text/csv,text/plain,text/comma-separated-values" hidden>
+    <span class="sp"></span>
+    <button class="sbtn" id="btnFs" title="Schermo intero">⛶</button>
+    <button class="sbtn" id="btnSet" title="Impostazioni">⚙</button>
+  </header>
+
+  <main id="plot">
+    <canvas id="cv"></canvas>
+    <div id="ovl"></div>
+    <div id="warn" hidden></div>
+  </main>
+
+  <aside id="hud">
+    <div class="blk"><small>TARGET km/h</small><div class="big cy" id="hT">0.0</div></div>
+    <div class="blk"><small>GPS REALE km/h</small><div class="big" id="hG">--</div></div>
+    <div class="blk"><small>ERRORE Δ km/h</small><div class="big" id="hD">--</div></div>
+    <div class="blk info">
+      <div><small>TEMPO</small><b id="hTime">0 / 0 s</b></div>
+      <div><small>FASE</small><b id="hPhase">—</b></div>
+      <div class="full" id="hTol">In tolleranza: --</div>
+    </div>
+  </aside>
+
+  <footer id="ctl">
+    <button class="b go" id="bStart">▶ START</button>
+    <button class="b" id="bPause">❚❚ PAUSA</button>
+    <button class="b stop" id="bReset">↺ RESET</button>
+    <button class="b" id="bWake">☀ SCHERMO</button>
+    <button class="b" id="bExp">⬇ ESPORTA LOG CSV<small id="logN">0 righe</small></button>
+  </footer>
+</div>
+
+<div id="modal" hidden>
+  <div class="card">
+    <h3>Impostazioni</h3>
+    <div class="row"><label for="sTolV">Tolleranza velocità ± (km/h)</label><input type="number" id="sTolV" step="0.5" min="0.5" max="20"></div>
+    <div class="row"><label for="sTolT">Tolleranza tempo ± (s)</label><input type="number" id="sTolT" step="0.5" min="0" max="5"></div>
+    <div class="row"><label for="sCd">Conto alla rovescia prima del via (s)</label><input type="number" id="sCd" step="1" min="0" max="30"></div>
+    <div class="row"><label for="sHz">Frequenza di registrazione</label>
+      <select id="sHz"><option value="10">10 Hz</option><option value="1">1 Hz</option></select></div>
+    <div class="row"><label for="sY">Scala verticale</label>
+      <select id="sY"><option value="auto">Automatica (finestra)</option><option value="fix">Fissa (tutto il ciclo)</option></select></div>
+    <div class="row"><label for="sSep">Formato CSV esportato</label>
+      <select id="sSep"><option value=",">virgola , (decimali con punto)</option><option value=";">punto e virgola ; (decimali con virgola, Excel IT)</option></select></div>
+    <div class="row"><label for="sNoise">Demo: rumore σ (km/h)</label><input type="number" id="sNoise" step="0.1" min="0" max="5"></div>
+    <div class="row"><label for="sTau">Demo: ritardo veicolo τ (s)</label><input type="number" id="sTau" step="0.1" min="0.1" max="5"></div>
+    <p class="hint">Frequenza di registrazione, profilo, CSV e Demo si cambiano solo a ciclo fermo (dopo RESET).</p>
+    <button class="b go" id="sClose" style="width:100%">CHIUDI</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+(()=>{
+'use strict';
+const $=id=>document.getElementById(id);
+const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+
+/* ===================== IMPOSTAZIONI ===================== */
+const DEF={tolV:2,tolT:1,countdown:5,logHz:10,yMode:'auto',sep:',',simNoise:0.5,simTau:0.8,wake:true};
+const S=Object.assign({},DEF);
+try{Object.assign(S,JSON.parse(localStorage.getItem('da_settings')||'{}'));}catch(e){}
+function saveS(){try{localStorage.setItem('da_settings',JSON.stringify(S));}catch(e){}}
+
+/*BEGIN-CYCLES*/
+/* ===================== CICLI ===================== */
+function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function mk(name,T,V,phases){let m=0;for(const v of V)if(v>m)m=v;return{name,T,V,phases,tEnd:T[T.length-1],vMax:m};}
+// punti chiave [t,v] -> campioni a 1 Hz con interpolazione lineare
+function fromBP(bp){
+  const tEnd=bp[bp.length-1][0],T=[],V=[];let j=0;
+  for(let t=0;t<=tEnd;t++){
+    while(j<bp.length-2&&bp[j+1][0]<=t)j++;
+    const a=bp[j],b=bp[j+1],f=b[0]===a[0]?0:Math.min(1,Math.max(0,(t-a[0])/(b[0]-a[0])));
+    T.push(t);V.push(a[1]+(b[1]-a[1])*f);
+  }
+  return{T,V};
+}
+function buildNEDC(){
+  const udc=[[0,0],[11,0],[15,15],[23,15],[25,10],[28,0],[49,0],[54,15],[56,15],[61,32],[85,32],[93,10],[96,0],[117,0],[122,15],[124,15],[133,35],[135,35],[143,50],[155,50],[163,35],[176,35],[185,10],[188,0],[195,0]];
+  const eudc=[[0,0],[20,0],[26,15],[28,15],[37,35],[39,35],[61,70],[111,70],[119,50],[188,50],[201,70],[251,70],[286,100],[316,100],[336,120],[356,120],[390,0],[400,0]];
+  const bp=[];
+  for(let k=0;k<4;k++)for(const[t,v]of udc){if(k>0&&t===0)continue;bp.push([t+195*k,v]);}
+  for(const[t,v]of eudc){if(t===0)continue;bp.push([t+780,v]);}
+  const{T,V}=fromBP(bp);
+  const ph=[];for(let k=0;k<4;k++)ph.push({name:'UDC '+(k+1),s:195*k,e:195*(k+1)});
+  ph.push({name:'EUDC',s:780,e:1180});
+  return mk('NEDC',T,V,ph);
+}
+// Fase WLTC parametrica a 1 Hz: sequenza di accelerazioni/crociere/decelerazioni (modo l=Low, m=Medium, h=High, x=Extra High)
+function genPhase(len,vmax,seed,mode){
+  const r=rng(seed),R=(a,b)=>a+(b-a)*r();
+  const wp=[[0,0]];let t=0,cur=0,usedMax=false;
+  const go=(dt,v)=>{t+=dt;wp.push([t,v]);cur=v;};
+  const accRate=mode==='x'?1.9:mode==='h'?2.4:3.0;   // km/h per s
+  const decRate=3.4;
+  if(mode==='l'||mode==='m'){
+    const lo=mode==='l'?0.25:0.35;let first=true;
+    for(;;){
+      const idle=first?11:(mode==='l'?R(2,16):R(1,7));first=false;
+      const p=(!usedMax&&t>len*0.5)?vmax:R(lo,0.9)*vmax;
+      const a=Math.max(3,p/accRate),c=R(0,mode==='l'?10:16),d=Math.max(3,p/decRate);
+      if(t+idle+a+c+d+2>len)break;
+      if(p===vmax)usedMax=true;
+      go(idle,0);go(a,p);if(c>1)go(c,p*R(0.92,1));go(d,0);
+    }
+  }else{
+    const p0=R(0.35,0.5)*vmax;go(Math.max(5,p0/accRate),p0);
+    for(;;){
+      const v=(!usedMax&&t>len*0.45)?vmax:R(0.45,0.97)*vmax;
+      const dt=Math.max(R(10,32),Math.abs(v-cur)/(v>cur?accRate:decRate)+2);
+      const hold=v===vmax?R(6,14):0;
+      if(t+dt+hold+Math.max(5,v/decRate)+3>len)break;
+      if(v===vmax)usedMax=true;
+      go(dt,v);if(hold>0)go(hold,vmax);
+    }
+    go(Math.max(5,cur/decRate),0);
+  }
+  if(t<len)go(len-t,0);
+  const out=new Array(len);let j=0;
+  for(let s=0;s<len;s++){
+    while(j<wp.length-2&&wp[j+1][0]<=s)j++;
+    const a=wp[j],b=wp[j+1],f=b[0]===a[0]?0:Math.min(1,Math.max(0,(s-a[0])/(b[0]-a[0])));
+    out[s]=a[1]+(b[1]-a[1])*f;
+  }
+  const sm=out.slice();                       // leggero arrotondamento degli spigoli
+  for(let i=1;i<len-1;i++)sm[i]=(out[i-1]+2*out[i]+out[i+1])/4;
+  return sm;
+}
+function buildWLTC(){
+  const defs=[['Low',589,56.5,11,'l'],['Medium',433,76.6,23,'m'],['High',455,97.4,37,'h'],['Extra High',323,131.3,41,'x']];
+  const V=[],ph=[];let s=0;
+  for(const[name,len,vmax,seed,mode]of defs){
+    V.push(...genPhase(len,vmax,seed,mode));ph.push({name,s,e:s+len});s+=len;
+  }
+  V.push(0);const T=V.map((_,i)=>i);
+  ph[ph.length-1].e=1800;
+  return mk('WLTC',T,V,ph);
+}
+function buildTEST(){
+  const bp=[[0,0],[10,0],[30,50],[50,50],[65,80],[85,80],[95,100],[115,100],[140,0],[150,0]];
+  const{T,V}=fromBP(bp);
+  return mk('TEST',T,V,[{name:'FERMO',s:0,e:10},{name:'RAMPA 0→50',s:10,e:30},{name:'50 km/h',s:30,e:50},{name:'RAMPA 50→80',s:50,e:65},{name:'80 km/h',s:65,e:85},{name:'RAMPA 80→100',s:85,e:95},{name:'100 km/h',s:95,e:115},{name:'DECEL 100→0',s:115,e:140},{name:'FERMO',s:140,e:150}]);
+}
+/*END-CYCLES*/
+
+const CYCLES={nedc:buildNEDC(),wltc:buildWLTC(),test:buildTEST()};
+const LABELS={nedc:'NEDC completo (1180 s)',wltc:'WLTC Cl.3b parametrico (1800 s)',test:'TEST rampe 0-50-80-100-0 (150 s)'};
+let cycKey='nedc',cyc=CYCLES.nedc,csvN=0;
+
+/* utilità curva */
+function idxLE(T,t){let lo=0,hi=T.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(T[m]<=t)lo=m;else hi=m-1;}return lo;}
+function vAt(c,t){const T=c.T,V=c.V,n=T.length;if(t<=T[0])return V[0];if(t>=T[n-1])return V[n-1];const i=idxLE(T,t);return V[i]+(V[i+1]-V[i])*(t-T[i])/(T[i+1]-T[i]);}
+function env(c,t){ // inviluppo del target nella finestra ±tolT (tolleranza temporale)
+  const a=t-S.tolT,b=t+S.tolT,va=vAt(c,a),vb=vAt(c,b);
+  let lo=Math.min(va,vb),hi=Math.max(va,vb);const T=c.T,V=c.V,n=T.length;
+  let i=a<T[0]?0:idxLE(T,a)+1;
+  for(;i<n&&T[i]<b;i++){if(V[i]<lo)lo=V[i];if(V[i]>hi)hi=V[i];}
+  return[lo,hi];
+}
+function rangeMax(c,a,b){
+  let m=Math.max(vAt(c,a),vAt(c,b));const T=c.T,V=c.V,n=T.length;
+  let i=a<T[0]?0:idxLE(T,a)+1;for(;i<n&&T[i]<b;i++)if(V[i]>m)m=V[i];return m;
+}
+function phaseAt(t){const p=cyc.phases;for(const x of p)if(t>=x.s&&t<x.e)return x.name;return p.length?p[p.length-1].name:'—';}
+
+/* ===================== STATO ===================== */
+let state='idle';               // idle | run | pause | done
+let tBase=-S.countdown,perf0=0,tNow=-S.countdown;
+let trail=[],log=[],logIdx=-1,exported=false,logSim=false,cmp={n:0,ok:0};
+const gps={v:null,lat:null,lon:null,acc:null,last:null,dtAvg:null};
+let gpsErr=null,watchId=null;
+const sim={on:false,v:0,lat:40.8518,lon:14.2681,last:0};
+
+function vGps(){
+  if(sim.on)return gps.v;
+  if(gps.last==null||gps.v==null)return null;
+  return(performance.now()-gps.last>3000)?null:gps.v;
+}
+const COL={ok:'#27e07b',warn:'#ffd23f',bad:'#ff4b4b'};
+function evalTol(t,v){ // 0 verde, 1 giallo (al limite), 2 rosso (fuori)
+  if(v==null)return-1;
+  const[lo,hi]=env(cyc,t),l=lo-S.tolV,h=hi+S.tolV,m=Math.min(v-l,h-v);
+  if(m<0)return 2;
+  return m<Math.max(0.4,0.25*S.tolV)?1:0;
+}
+const lvlCol=l=>l===0?COL.ok:l===1?COL.warn:l===2?COL.bad:'#7f95a9';
+
+/* ===================== GPS ===================== */
+function onPos(p){
+  const c=p.coords,now=performance.now();
+  let v=c.speed;v=(v==null||!isFinite(v))?0:Math.max(0,v*3.6);
+  if(gps.last!=null){const dt=(now-gps.last)/1000;if(dt>0.05&&dt<10)gps.dtAvg=gps.dtAvg?gps.dtAvg*0.8+dt*0.2:dt;}
+  gps.v=v;gps.lat=c.latitude;gps.lon=c.longitude;gps.acc=c.accuracy;gps.last=now;gpsErr=null;
+  pushSample();
+}
+function onGpsErr(e){
+  if(e.code===1)gpsErr='PERMESSO NEGATO';
+  else if(e.code===2)gpsErr='POSIZIONE NON DISPONIBILE';
+  // code 3 (timeout): il watch continua, resta "in attesa fix"
+  if(e.code===1)toast('Permesso GPS negato. Controlla le impostazioni del sito in Chrome e che la pagina sia HTTPS o localhost.',5000);
+}
+function startGps(){
+  if(sim.on||watchId!==null)return;
+  if(!('geolocation' in navigator)){gpsErr='GPS NON SUPPORTATO';return;}
+  try{watchId=navigator.geolocation.watchPosition(onPos,onGpsErr,{enableHighAccuracy:true,maximumAge:0,timeout:5000});}
+  catch(e){gpsErr='ERRORE GPS';}
+}
+function stopGps(){if(watchId!==null){try{navigator.geolocation.clearWatch(watchId);}catch(e){}watchId=null;}}
+function pushSample(){
+  if(state!=='run')return;
+  const v=vGps();if(v==null)return;
+  trail.push({t:tNow,v});
+  const lim=tNow-12;let k=0;while(k<trail.length&&trail[k].t<lim)k++;if(k>0)trail.splice(0,k);
+}
+
+/* ===================== SIMULAZIONE ===================== */
+function gauss(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+setInterval(()=>{
+  if(!sim.on)return;
+  const now=performance.now(),dt=Math.min(0.5,(now-sim.last)/1000);sim.last=now;
+  if(state==='run'){
+    tick();
+    const vt=vAt(cyc,tNow),k=1-Math.exp(-dt/Math.max(0.1,S.simTau));
+    sim.v+=(vt-sim.v)*k;
+    sim.lon+=(sim.v/3.6*dt)/(111320*Math.cos(sim.lat*Math.PI/180));
+  }else if(state==='idle'){sim.v=0;}
+  gps.v=Math.max(0,sim.v+gauss()*S.simNoise*(sim.v>0.5?1:0.2));
+  gps.lat=sim.lat;gps.lon=sim.lon;gps.acc=3+Math.random()*2;gps.dtAvg=0.1;gps.last=now;
+  pushSample();
+},100);
+
+/* ===================== CLOCK + LOG ===================== */
+function tick(){
+  if(state!=='run')return;
+  let t=tBase+(performance.now()-perf0)/1000,fin=false;
+  if(t>=cyc.tEnd){t=cyc.tEnd;fin=true;}
+  tNow=t;doLog(t);
+  if(fin){state='done';onDone();}
+}
+function doLog(t){
+  if(t<0)return;
+  const rate=S.logHz,k=Math.floor(t*rate+1e-9);
+  while(logIdx<k){
+    logIdx++;const tg=logIdx/rate,vt=vAt(cyc,tg),vg=vGps();
+    log.push({ts:Date.now()-(t-tg)*1000,t:tg,vt,vg,err:vg==null?null:vg-vt,lat:gps.lat,lon:gps.lon,acc:gps.acc});
+    if(sim.on)logSim=true;
+    if(vg!=null){cmp.n++;if(evalTol(tg,vg)<2)cmp.ok++;}
+  }
+}
+setInterval(tick,20);
+
+function exportCsv(){
+  if(!log.length){toast('Nessun dato registrato');return;}
+  const semi=S.sep===';',sep=semi?';':',',dec=semi?',':'.';
+  const f=(x,d)=>(x==null||!isFinite(x))?'':x.toFixed(d).replace('.',dec);
+  const rows=[['timestamp','t_ciclo_s','v_target_kmh','v_gps_kmh','errore_kmh','lat','lon','accuracy_m'].join(sep)];
+  for(const r of log)rows.push([new Date(r.ts).toISOString(),f(r.t,2),f(r.vt,2),f(r.vg,2),f(r.err,2),f(r.lat,7),f(r.lon,7),f(r.acc,1)].join(sep));
+  const d=new Date(),p=n=>String(n).padStart(2,'0');
+  const name=`driversaid_${cycKey.startsWith('csv')?'csv':cycKey}_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}${logSim?'_SIM':''}.csv`;
+  const blob=new Blob([(semi?'﻿':'')+rows.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=name;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},3000);
+  exported=true;toast('Log esportato: '+name,3500);
+}
+
+/* ===================== CONTROLLI ===================== */
+function start(){
+  if(state==='run')return;
+  if(state==='done'){toast('Ciclo terminato: esporta il log o premi RESET');return;}
+  if(state==='idle'){tBase=-S.countdown;tNow=tBase;trail=[];}
+  perf0=performance.now();state='run';
+  if(S.wake)setWake(true,true);
+  startGps();updateButtons();
+}
+function pause(){if(state!=='run')return;tick();if(state!=='run')return;tBase=tNow;state='pause';updateButtons();}
+function reset(){
+  if(log.length&&!exported&&!confirm('Il log non è stato esportato ('+log.length+' righe). Cancellarlo?'))return;
+  state='idle';tBase=tNow=-S.countdown;trail=[];log=[];logIdx=-1;exported=false;logSim=false;cmp={n:0,ok:0};sim.v=0;
+  updateButtons();
+}
+function onDone(){updateButtons();toast('Fine ciclo – esporta il log',4000);}
+function updateButtons(){
+  const idle=state==='idle';
+  $('bStart').disabled=state==='run';
+  $('bStart').textContent=state==='pause'?'▶ RIPRENDI':'▶ START';
+  $('bPause').disabled=state!=='run';
+  $('bExp').disabled=!log.length;
+  $('logN').textContent=log.length+' righe';
+  $('profile').disabled=!idle;$('simChk').disabled=!idle;
+  $('csvBtn').setAttribute('aria-disabled',idle?'false':'true');
+  $('sHz').disabled=!idle;
+}
+setInterval(()=>{$('logN').textContent=log.length+' righe';$('bExp').disabled=!log.length;},500);
+
+/* Wake Lock */
+let wl=null;
+async function setWake(on,silent){
+  if(!('wakeLock' in navigator)){if(!silent)toast('Wake Lock non supportato o pagina non sicura');return;}
+  try{
+    if(on){if(!wl){wl=await navigator.wakeLock.request('screen');wl.addEventListener('release',()=>{wl=null;wakeUI();});}}
+    else if(wl){await wl.release();wl=null;}
+  }catch(e){if(!silent)toast('Wake Lock rifiutato: '+e.message);}
+  wakeUI();
+}
+function wakeUI(){
+  const b=$('bWake');
+  if(!('wakeLock' in navigator)){b.textContent='☀ SCHERMO: N/D';b.classList.remove('on');return;}
+  if(wl){b.textContent='☀ SCHERMO ACCESO';b.classList.add('on');}
+  else{b.textContent=S.wake?'☀ SCHERMO: AUTO':'☀ SCHERMO: OFF';b.classList.remove('on');}
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&S.wake&&state==='run')setWake(true,true);});
+
+/* ===================== PROFILI & CSV ===================== */
+function fillProfiles(sel){
+  const p=$('profile');p.innerHTML='';
+  for(const k of Object.keys(CYCLES)){const o=document.createElement('option');o.value=k;o.textContent=LABELS[k];p.appendChild(o);}
+  p.value=sel||cycKey;
+}
+function setCycle(k){
+  cycKey=k;cyc=CYCLES[k];trail=[];yInit=false;
+  if(state==='idle'){tBase=tNow=-S.countdown;}
+}
+$('profile').addEventListener('change',e=>setCycle(e.target.value));
+
+function parseCsv(txt){
+  txt=txt.replace(/^﻿/,'');const pts=[];
+  for(const raw of txt.split(/\r?\n/)){
+    const line=raw.trim();if(!line||line[0]==='#')continue;
+    let parts,decComma=true;                       // con ; tab o spazi la virgola può essere decimale
+    if(line.includes(';'))parts=line.split(';');
+    else if(line.includes('\t'))parts=line.split('\t');
+    else if(line.includes(',')){parts=line.split(',');decComma=false;}
+    else parts=line.split(/\s+/);
+    const num=s=>parseFloat((s||'').trim().replace(decComma?',':'§','.'));
+    const t=num(parts[0]),v=num(parts[1]);
+    if(isFinite(t)&&isFinite(v))pts.push([t,Math.max(0,v)]);
+  }
+  if(pts.length<2)throw new Error('servono almeno 2 righe numeriche tempo_s,velocita_kmh');
+  pts.sort((a,b)=>a[0]-b[0]);
+  const u=[];for(const p of pts){if(u.length&&p[0]===u[u.length-1][0])u[u.length-1]=p;else u.push(p);}
+  const t0=u[0][0];
+  const T=u.map(p=>p[0]-t0),V=u.map(p=>p[1]);
+  if(T[T.length-1]<=0)throw new Error('durata nulla');
+  return{T,V};
+}
+$('csvIn').addEventListener('change',async e=>{
+  const f=e.target.files&&e.target.files[0];if(!f)return;
+  try{
+    const{T,V}=parseCsv(await f.text());
+    const key='csv'+(++csvN);
+    CYCLES[key]=mk('CSV',T,V,[{name:'CSV',s:0,e:T[T.length-1]}]);
+    LABELS[key]='CSV: '+f.name+' ('+Math.round(T[T.length-1])+' s)';
+    fillProfiles(key);setCycle(key);
+    toast('Caricati '+T.length+' punti, '+Math.round(T[T.length-1])+' s, vmax '+CYCLES[key].vMax.toFixed(1)+' km/h',3500);
+  }catch(err){toast('CSV non valido: '+err.message,4500);}
+  e.target.value='';
+});
+
+/* ===================== SIM TOGGLE ===================== */
+$('simChk').addEventListener('change',e=>{
+  sim.on=e.target.checked;
+  gps.v=null;gps.last=null;gps.dtAvg=null;gps.lat=gps.lon=gps.acc=null;sim.v=0;sim.last=performance.now();
+  if(sim.on){stopGps();gpsErr=null;}else{startGps();}
+});
+
+/* ===================== UI: HUD ===================== */
+let lastHud=0;
+function updateGpsUI(){
+  const dot=$('gpsDot'),txt=$('gpsTxt'),info=$('gpsInfo');
+  let cls,t,i='';
+  if(sim.on){cls='sim';t='SIMULAZIONE';i='10 Hz · ±'+(gps.acc!=null?gps.acc.toFixed(0):'-')+' m';}
+  else if(gpsErr){cls='err';t='ERRORE: '+gpsErr;}
+  else if(gps.last==null){cls='wait';t='IN ATTESA FIX';}
+  else{
+    const age=(performance.now()-gps.last)/1000;
+    if(age>3){cls='wait';t='FIX PERSO ('+age.toFixed(0)+' s)';}
+    else{cls='ok';t='ATTIVO';}
+    i=(gps.dtAvg?(1/gps.dtAvg).toFixed(1):'-')+' Hz · ±'+(gps.acc!=null?gps.acc.toFixed(0):'-')+' m';
+  }
+  dot.className=cls;txt.textContent=t;info.textContent=i;
+}
+function updateHud(){
+  const t=tNow,vt=vAt(cyc,t),g=vGps(),lvl=evalTol(t,g),col=lvlCol(lvl);
+  $('hT').textContent=vt.toFixed(1);
+  const hg=$('hG'),hd=$('hD');
+  if(g==null){hg.textContent='--';hd.textContent='--';hg.style.color=hd.style.color='#7f95a9';}
+  else{
+    const d=g-vt;
+    hg.textContent=g.toFixed(1);hg.style.color=col;
+    hd.textContent=(d>=0?'+':'−')+Math.abs(d).toFixed(1);hd.style.color=col;
+  }
+  $('hTime').textContent=(t<0?'−'+Math.ceil(-t):Math.floor(t))+' / '+Math.round(cyc.tEnd)+' s';
+  $('hPhase').textContent=phaseAt(Math.max(0,t));
+  $('hTol').textContent='In tolleranza: '+(cmp.n?(100*cmp.ok/cmp.n).toFixed(1)+' %':'--');
+  updateGpsUI();
+  const o=$('ovl');let h='';
+  if(state==='run'&&t<0)h='<div class="n">'+Math.ceil(-t)+'</div><div class="s">PARTENZA TRA…</div>';
+  else if(state==='idle')h='<div class="m">Premi START</div><div class="s">'+(sim.on?'Modalità demo attiva':'Il ciclo parte dopo '+S.countdown+' s')+'</div>';
+  else if(state==='pause')h='<div class="m">PAUSA</div>';
+  else if(state==='done')h='<div class="m">FINE CICLO</div><div class="s">In tolleranza: '+(cmp.n?(100*cmp.ok/cmp.n).toFixed(1)+' %':'--')+' · '+log.length+' righe nel log</div>';
+  if(o._h!==h){o.innerHTML=h;o._h=h;}
+}
+
+/* ===================== CANVAS ===================== */
+const cv=$('cv'),ctx=cv.getContext('2d');
+let W=0,H=0,dpr=1,yMax=40,yInit=false;
+function resize(){
+  const r=cv.parentElement.getBoundingClientRect();
+  dpr=Math.min(3,window.devicePixelRatio||1);W=Math.max(10,r.width);H=Math.max(10,r.height);
+  cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);cv.style.width=W+'px';cv.style.height=H+'px';
+}
+if('ResizeObserver' in window)new ResizeObserver(resize).observe(cv.parentElement);
+window.addEventListener('resize',resize);window.addEventListener('orientationchange',()=>setTimeout(resize,200));
+const nice=m=>Math.max(40,Math.ceil(m/10)*10);
+
+function draw(){
+  const c=cyc,t=tNow;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.fillStyle='#05080c';ctx.fillRect(0,0,W,H);
+  const mL=Math.max(34,Math.min(46,W*0.07)),mR=8,mT=12,mB=20,pw=W-mL-mR,ph=H-mT-mB;
+  if(pw<60||ph<60)return;
+  const FUT=25,PAST=FUT*0.3/0.7,pxs=pw/(PAST+FUT),xNow=mL+0.3*pw;   // t=0 fisso al 30 %
+  const X=tau=>xNow+(tau-t)*pxs;
+  const g=vGps(),lvl=evalTol(t,g),col=lvlCol(lvl);
+  let want;
+  if(S.yMode==='fix')want=nice(c.vMax+S.tolV+6);
+  else{let m=rangeMax(c,t-PAST,t+FUT);if(g!=null)m=Math.max(m,g);want=nice(m+S.tolV+5);}
+  if(!yInit){yMax=want;yInit=true;}else yMax+=(want-yMax)*0.12;
+  const Y=v=>mT+ph*(1-v/yMax);
+
+  // griglia
+  ctx.font='600 11px system-ui,sans-serif';ctx.lineWidth=1;
+  const gs=yMax<=70?10:20;
+  ctx.textAlign='right';ctx.textBaseline='middle';
+  for(let v=0;v<=yMax+0.01;v+=gs){
+    const y=Math.round(Y(v))+0.5;
+    ctx.strokeStyle=v===0?'#3a5068':'#15212e';ctx.beginPath();ctx.moveTo(mL,y);ctx.lineTo(mL+pw,y);ctx.stroke();
+    ctx.fillStyle='#8aa0b4';ctx.fillText(String(v),mL-5,y);
+  }
+  ctx.textAlign='center';ctx.textBaseline='top';
+  for(let tau=Math.ceil((t-PAST)/5)*5;tau<=t+FUT;tau+=5){
+    const x=Math.round(X(tau))+0.5;
+    ctx.strokeStyle='#121d29';ctx.beginPath();ctx.moveTo(x,mT);ctx.lineTo(x,mT+ph);ctx.stroke();
+    if(tau>=0){ctx.fillStyle='#8aa0b4';ctx.fillText(String(tau),x,mT+ph+4);}
+  }
+  ctx.fillStyle='rgba(255,255,255,.03)';ctx.fillRect(mL,mT,xNow-mL,ph);
+
+  ctx.save();ctx.beginPath();ctx.rect(mL,mT,pw,ph);ctx.clip();
+
+  // banda di tolleranza (±tolV km/h e ±tolT s)
+  const step=3,xs=[],hi=[],lo=[];
+  for(let x=mL;x<=mL+pw+step;x+=step){
+    const tau=t+(x-xNow)/pxs,e=env(c,tau);
+    xs.push(x);hi.push(Y(e[1]+S.tolV));lo.push(Y(Math.max(0,e[0]-S.tolV)));
+  }
+  ctx.beginPath();ctx.moveTo(xs[0],hi[0]);
+  for(let i=1;i<xs.length;i++)ctx.lineTo(xs[i],hi[i]);
+  for(let i=xs.length-1;i>=0;i--)ctx.lineTo(xs[i],lo[i]);
+  ctx.closePath();ctx.fillStyle='rgba(39,224,123,.17)';ctx.fill();
+  ctx.strokeStyle='rgba(255,210,63,.75)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(xs[0],hi[0]);for(let i=1;i<xs.length;i++)ctx.lineTo(xs[i],hi[i]);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(xs[0],lo[0]);for(let i=1;i<xs.length;i++)ctx.lineTo(xs[i],lo[i]);ctx.stroke();
+
+  // confini di fase / fine ciclo
+  ctx.font='700 11px system-ui,sans-serif';ctx.textAlign='left';ctx.textBaseline='top';
+  ctx.setLineDash([4,4]);ctx.lineWidth=1;
+  for(const p of c.phases){
+    if(p.s>t-PAST&&p.s<t+FUT){const x=X(p.s);ctx.strokeStyle='rgba(255,255,255,.28)';ctx.beginPath();ctx.moveTo(x,mT);ctx.lineTo(x,mT+ph);ctx.stroke();ctx.fillStyle='rgba(255,255,255,.55)';ctx.fillText(p.name,x+4,mT+3);}
+  }
+  if(c.tEnd>t-PAST&&c.tEnd<t+FUT){const x=X(c.tEnd);ctx.strokeStyle='rgba(255,75,75,.6)';ctx.beginPath();ctx.moveTo(x,mT);ctx.lineTo(x,mT+ph);ctx.stroke();}
+  ctx.setLineDash([]);
+
+  // curva target
+  const a=t-PAST-1,b=t+FUT+1,P=new Path2D();
+  P.moveTo(X(a),Y(vAt(c,a)));
+  for(let i=a<c.T[0]?0:idxLE(c.T,a)+1;i<c.T.length&&c.T[i]<b;i++)P.lineTo(X(c.T[i]),Y(c.V[i]));
+  P.lineTo(X(b),Y(vAt(c,b)));
+  ctx.lineJoin='round';ctx.lineCap='round';ctx.lineWidth=4.5;
+  ctx.save();ctx.beginPath();ctx.rect(mL,mT,xNow-mL,ph);ctx.clip();ctx.strokeStyle='rgba(25,227,255,.4)';ctx.stroke(P);ctx.restore();
+  ctx.save();ctx.beginPath();ctx.rect(xNow,mT,mL+pw-xNow,ph);ctx.clip();ctx.shadowColor='#19e3ff';ctx.shadowBlur=9;ctx.strokeStyle='#19e3ff';ctx.stroke(P);ctx.restore();
+
+  // scia velocità reale (ultimi 10 s)
+  ctx.lineWidth=3.5;
+  for(let k=1;k<trail.length;k++){
+    const p0=trail[k-1],p1=trail[k];if(p1.t-p0.t>1.6)continue;
+    const age=t-p1.t;if(age>10.5)continue;
+    ctx.strokeStyle='rgba(255,159,28,'+clamp(1-age/10.5,0.08,1).toFixed(2)+')';
+    ctx.beginPath();ctx.moveTo(X(p0.t),Y(p0.v));ctx.lineTo(X(p1.t),Y(p1.v));ctx.stroke();
+  }
+  if(g!=null&&trail.length){const l=trail[trail.length-1];if(t-l.t<1.6){ctx.strokeStyle='rgba(255,159,28,.95)';ctx.beginPath();ctx.moveTo(X(l.t),Y(l.v));ctx.lineTo(xNow,Y(g));ctx.stroke();}}
+
+  // linea del presente
+  ctx.strokeStyle='rgba(255,255,255,.55)';ctx.lineWidth=1.5;ctx.setLineDash([6,5]);
+  ctx.beginPath();ctx.moveTo(xNow,mT);ctx.lineTo(xNow,mT+ph);ctx.stroke();ctx.setLineDash([]);
+  ctx.restore();
+
+  // anello target + pallino velocità reale
+  const yT=Y(vAt(c,t));
+  ctx.strokeStyle='#19e3ff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(xNow,yT,7,0,6.2832);ctx.stroke();
+  if(g!=null){
+    const yg=clamp(Y(g),mT+4,mT+ph-4);
+    ctx.save();ctx.shadowColor=col;ctx.shadowBlur=20;ctx.fillStyle=col;ctx.beginPath();ctx.arc(xNow,yg,10,0,6.2832);ctx.fill();ctx.restore();
+    ctx.strokeStyle='#fff';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(xNow,yg,10,0,6.2832);ctx.stroke();
+  }
+}
+
+/* ===================== LOOP ===================== */
+function frame(){
+  requestAnimationFrame(frame);
+  tick();draw();
+  const now=performance.now();
+  if(now-lastHud>90){lastHud=now;updateHud();}
+}
+
+/* ===================== UI VARIE ===================== */
+let toastT=0;
+function toast(m,ms){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),ms||2600);}
+
+$('bStart').onclick=start;$('bPause').onclick=pause;$('bReset').onclick=reset;$('bExp').onclick=exportCsv;
+$('bWake').onclick=()=>{
+  if(!('wakeLock' in navigator)){toast('Wake Lock non disponibile (serve HTTPS/localhost e Chrome recente)');return;}
+  S.wake=!(wl||S.wake);
+  saveS();setWake(S.wake);
+};
+$('btnFs').onclick=async()=>{
+  try{
+    if(!document.fullscreenElement){await document.documentElement.requestFullscreen();try{await screen.orientation.lock('landscape');}catch(e){}}
+    else await document.exitFullscreen();
+  }catch(e){toast('Schermo intero non disponibile');}
+};
+const fields={sTolV:['tolV',parseFloat],sTolT:['tolT',parseFloat],sCd:['countdown',parseFloat],sHz:['logHz',x=>parseInt(x,10)],sY:['yMode',x=>x],sSep:['sep',x=>x],sNoise:['simNoise',parseFloat],sTau:['simTau',parseFloat]};
+function loadSettingsUI(){for(const id in fields)$(id).value=S[fields[id][0]];}
+for(const id in fields){
+  $(id).addEventListener('change',()=>{
+    const[k,fn]=fields[id];let v=fn($(id).value);if(typeof v==='number'&&!isFinite(v))v=DEF[k];S[k]=v;saveS();
+    if(k==='countdown'&&state==='idle'){tBase=tNow=-S.countdown;}
+    loadSettingsUI();
+  });
+}
+$('btnSet').onclick=()=>{loadSettingsUI();$('sHz').disabled=state!=='idle';$('modal').hidden=false;};
+$('sClose').onclick=()=>{$('modal').hidden=true;};
+$('modal').addEventListener('click',e=>{if(e.target.id==='modal')$('modal').hidden=true;});
+window.addEventListener('beforeunload',e=>{if(log.length&&!exported){e.preventDefault();e.returnValue='';}});
+
+/* avviso contesto non sicuro */
+(function(){
+  const w=$('warn');let m='';
+  if(!window.isSecureContext)m='Pagina non sicura: Chrome blocca GPS e Wake Lock. Apri l\'app da HTTPS oppure da http://localhost.';
+  else if(location.protocol==='file:')m='Aperta da file://: su Android Chrome il GPS può essere bloccato. Servi il file via HTTPS o http://localhost (vedi istruzioni).';
+  if(m){w.textContent=m+'  (tocca per chiudere)';w.hidden=false;w.onclick=()=>{w.hidden=true;};setTimeout(()=>{w.hidden=true;},12000);}
+})();
+
+/* ===================== AVVIO ===================== */
+fillProfiles('nedc');loadSettingsUI();resize();wakeUI();updateButtons();startGps();
+requestAnimationFrame(frame);
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')){try{navigator.serviceWorker.register('sw.js').catch(()=>{});}catch(e){}}
+})();
+</script>
+</body>
+</html>
