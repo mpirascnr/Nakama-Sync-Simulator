@@ -454,6 +454,7 @@ function parseCsv(txt){
     if(isFinite(t)&&isFinite(v))pts.push([t,Math.max(0,v)]);
   }
   if(pts.length<2)throw new Error('servono almeno 2 righe numeriche tempo_s,velocita_kmh');
+  for(let i=1;i<pts.length;i++)if(pts[i][0]<=pts[i-1][0]){const e=new Error('prima colonna non è un tempo crescente');e.notTime=true;throw e;}
   pts.sort((a,b)=>a[0]-b[0]);
   const u=[];for(const p of pts){if(u.length&&p[0]===u[u.length-1][0])u[u.length-1]=p;else u.push(p);}
   const t0=u[0][0];
@@ -464,7 +465,11 @@ function parseCsv(txt){
 $('csvIn').addEventListener('change',async e=>{
   const f=e.target.files&&e.target.files[0];if(!f)return;
   try{
-    const{T,V}=parseCsv(await f.text());
+    const txt=await f.text();
+    let res;
+    try{res=parseCsv(txt);}
+    catch(err){if(err.notTime){loadGearText(txt,f.name);e.target.value='';return;}throw err;}
+    const{T,V}=res;
     const key='csv'+(++csvN);
     CYCLES[key]=mk('CSV',T,V,[{name:'CSV',s:0,e:T[T.length-1]}]);
     LABELS[key]='CSV: '+f.name+' ('+Math.round(T[T.length-1])+' s)';
@@ -494,15 +499,16 @@ function parseGearCsv(txt){
   if(V.length<2)throw new Error('servono almeno 2 righe: velocita_kmh,marcia');
   return{T:V.map((_,i)=>i),V,G};
 }
+function loadGearText(txt,name){
+  const{T,V,G}=parseGearCsv(txt);
+  const key='csv'+(++csvN),c=mk('CSV',T,V,[{name:'CSV',s:0,e:T[T.length-1]}],G);
+  CYCLES[key]=c;LABELS[key]='CSV marce: '+name+' ('+Math.round(c.tEnd)+' s)';
+  fillProfiles(key);setCycle(key);
+  toast('Velocità,marcia: '+T.length+' s, '+c.shifts.length+' cambi marcia, vmax '+c.vMax.toFixed(1)+' km/h',4500);
+}
 $('csvGIn').addEventListener('change',async e=>{
   const f=e.target.files&&e.target.files[0];if(!f)return;
-  try{
-    const{T,V,G}=parseGearCsv(await f.text());
-    const key='csv'+(++csvN),c=mk('CSV',T,V,[{name:'CSV',s:0,e:T[T.length-1]}],G);
-    CYCLES[key]=c;LABELS[key]='CSV marce: '+f.name+' ('+Math.round(c.tEnd)+' s)';
-    fillProfiles(key);setCycle(key);
-    toast('Caricati '+T.length+' s, '+c.shifts.length+' cambi marcia, vmax '+c.vMax.toFixed(1)+' km/h',4000);
-  }catch(err){toast('CSV non valido: '+err.message,4500);}
+  try{loadGearText(await f.text(),f.name);}catch(err){toast('CSV non valido: '+err.message,4500);}
   e.target.value='';
 });
 
